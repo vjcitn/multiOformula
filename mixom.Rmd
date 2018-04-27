@@ -1,0 +1,68 @@
+# Setup
+
+```{r getpacks}
+library(mixOmics)
+library(MultiAssayExperiment)
+library(S4Vectors)
+```
+
+# A speculative approach to an S4-oriented rcc
+
+```{r methdef}
+setGeneric("rcc", function(X, Y, ncomp = 2, method = "ridge", 
+    lambda1 = 0, lambda2 = 0, ...) standardGeneric("rcc"))
+setMethod("rcc", c("MultiAssayExperiment", "formula"), 
+     function(X, Y, ncomp = 2, method = "ridge", 
+          lambda1 = 0, lambda2 = 0) {
+ thecall = match.call()
+ els = vapply(as.list(Y), as.character, "character")[-1]
+ tdm = function(x) data.matrix(t(x))
+ ans <- mixOmics::rcc( tdm(experiments(X)[[els[1]]]),
+     tdm(experiments(X)[[els[2]]]), ncomp=ncomp, method=method,
+        lambda1 = lambda1, lambda2 = lambda2)
+ ans$call=sys.call(2L)
+ print(ans)
+ invisible(ans)
+})
+
+setMethod("rcc", c("data.frame", "data.frame"), function(X, Y, ncomp = 2, method = "ridge", lambda1 = 0, lambda2 = 0) {
+ mixOmics::rcc(X, Y, ncomp=ncomp, method=method,
+ lambda1 = lambda1, lambda2 = lambda2)
+ })
+```
+
+# Constructing a multiassay experiment
+
+```{r doma}
+data(nutrimouse)
+X <- nutrimouse$lipid
+Y <- nutrimouse$gene
+cd = DataFrame(diet=nutrimouse$diet, gt=nutrimouse$geno)
+rownames(cd) = 1:40 # needed
+mlg = MultiAssayExperiment(ExperimentList(list(lipid=t(X), gene=t(Y))),
+   colData=cd) 
+mlg
+```
+
+# rcc executed through S4 method, two dispatch types
+
+```{r doruns}
+nutri.res1 <- rcc(X, Y, ncomp = 3, lambda1 = 0.064, lambda2 = 0.008)
+nutri.res1
+nutri.res2 <- rcc(mlg, lipid~gene, ncomp = 3, lambda1 = 0.064, 
+   lambda2 = 0.008)
+nutri.res2
+```
+
+# Creating MAE for liver toxicity
+
+```{r domo}
+lga = t(liver.toxicity$gene)
+lcl = t(liver.toxicity$clinic)
+colnames(lcl) = paste0("ID", colnames(lcl))
+toxCD = DataFrame(liver.toxicity$treatment)
+rownames(toxCD) = paste0("ID", rownames(toxCD))
+livtox = MultiAssayExperiment(ExperimentList(gene=lga, clinic=lcl), 
+   colData=toxCD)
+livtox
+```
